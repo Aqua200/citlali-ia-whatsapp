@@ -12,6 +12,7 @@
   "dependencies": {
     "@hapi/boom": "^10.0.0",
     "@whiskeysockets/baileys": "^6.7.18",
+    "chalk": "^5.3.0",
     "pino": "^8.13.0",
     "qrcode-terminal": "^0.12.0",
     "sentiment": "^5.0.2",
