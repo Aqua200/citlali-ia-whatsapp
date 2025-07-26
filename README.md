@@ -1,5 +1,7 @@
 # citlali-ia-whatsapp
-IA de Neykoor 
+
+ <img src= "">
+    </p>
 
 ```bash
 git clone https://github.com/Aqua200/citlali-ia-whatsapp.git
