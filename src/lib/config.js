@@ -1,5 +1,3 @@
-// src/lib/config.js
-
 const config = {
     owner: [
         '5211234567890@s.whatsapp.net'
