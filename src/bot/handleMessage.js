@@ -1,44 +1,79 @@
+// src/bot/handleMessage.js -> VERSIÓN 100% AUTÓNOMA (SIN IA)
 
-// Helper para añadir pausas. No lo cambies.
-const delay = ms => new Promise(res => setTimeout(res, ms));
+import fs from 'fs';
+import path from 'path';
+// ELIMINADO: Ya no importamos la IA.
+
+// --- GESTIÓN DE LA BASE DE DATOS (Sin cambios aquí) ---
+const dbPath = path.resolve('./database.json');
+
+function loadKnowledge() {
+  if (fs.existsSync(dbPath)) {
+    const rawData = fs.readFileSync(dbPath);
+    return JSON.parse(rawData);
+  }
+  const baseData = { conocimientos: [] };
+  fs.writeFileSync(dbPath, JSON.stringify(baseData, null, 2));
+  return baseData;
+}
+
+function saveKnowledge(data) {
+  fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
+}
+
+let db = loadKnowledge();
+// ------------------------------------------------------------------
+
 
 export async function handleMessage(sock, msg) {
-  // === LA PROTECCIÓN MÁS IMPORTANTE ===
-  // Ignora todos los mensajes que el propio bot envía.
-  // Esto previene el 99% de los bucles infinitos.
-  if (msg.key.fromMe) {
-    return;
-  }
-  // =====================================
+  if (msg.key.fromMe) return;
 
   const from = msg.key.remoteJid;
+  const senderJid = msg.key.participant || msg.sender;
   const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
-
   if (!text) return;
 
   const lowerText = text.toLowerCase();
 
-  // Condición de inicio (la activa el usuario)
-  if (lowerText.includes('hola')) {
-    // Si el usuario dice "hola", el bot envía la secuencia directamente.
-    
-    // Mensaje 1
-    await sock.sendMessage(from, { text: '¡Hola! Permíteme presentarme...' });
-    await delay(1000); // Espera 1 segundo (1000 ms)
+  // --- COMANDO DE APRENDIZAJE (Sigue igual) ---
+  if (lowerText.startsWith('!aprende ')) {
+    const content = text.substring(9).trim();
+    const parts = content.split('=');
 
-    // Mensaje 2
-    await sock.sendMessage(from, { text: 'Soy Citlali, tu asistente de IA.' });
-    await delay(1000); // Espera 1 segundo
-
-    // Mensaje 3
-    await sock.sendMessage(from, { text: '¿En qué te puedo ayudar hoy?' });
-    
-    // La secuencia termina aquí. No se necesita más lógica.
-
-  } else if (lowerText.includes('adiós')) {
-    await sock.sendMessage(from, { text: '¡Hasta luego! Que tengas un gran día 😊' });
-  } else {
-    // Respuesta por defecto para cualquier otro mensaje.
-    await sock.sendMessage(from, { text: 'No entendí eso, ¿puedes intentar de nuevo?' });
+    if (parts.length === 2) {
+      const pregunta = parts[0].trim().toLowerCase();
+      const respuesta = parts[1].trim();
+      const senderName = await sock.getName(senderJid);
+      const nuevoConocimiento = { pregunta, respuesta, creadorJid: senderJid, creadorNombre: senderName };
+      db.conocimientos.push(nuevoConocimiento);
+      saveKnowledge(db);
+      await sock.sendMessage(from, { text: `✅ ¡Gracias, ${senderName}! He aprendido una nueva respuesta.` });
+    } else {
+      await sock.sendMessage(from, { text: '❌ Formato incorrecto. Usa: !aprende pregunta = respuesta' });
+    }
+    return;
   }
-} 
+  
+  // --- LÓGICA DE RECONOCIMIENTO (Sigue igual) ---
+  for (const conocimiento of db.conocimientos) {
+    const palabrasClave = conocimiento.pregunta.split(' ').filter(p => p.length > 2);
+    let coincidencias = 0;
+    for (const palabra of palabrasClave) {
+      if (lowerText.includes(palabra)) {
+        coincidencias++;
+      }
+    }
+    const umbral = Math.floor(palabrasClave.length * 0.7);
+
+    if (palabrasClave.length > 0 && coincidencias >= umbral) {
+      console.log(`[Memoria Local] Respondiendo a "${conocimiento.pregunta}"`);
+      await sock.sendMessage(from, { text: conocimiento.respuesta });
+      return;
+    }
+  }
+
+  // --- ¡LÓGICA COMPLETAMENTE NUEVA! Si no encuentra respuesta... ---
+  // En lugar de llamar a la IA, ahora envía un mensaje de ayuda.
+  const noSeRespuesta = `🤔 No sé cómo responder a eso. ¡Puedes enseñarme usando el siguiente comando!\n\n\`\`\`!aprende ${text} = [Aquí pones la respuesta correcta]\`\`\``;
+  await sock.sendMessage(from, { text: noSeRespuesta });
+}
