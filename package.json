@@ -10,9 +10,10 @@
   "author": "Neykoor",
   "license": "MIT",
   "dependencies": {
+    "@hapi/boom": "^10.0.0",
     "@whiskeysockets/baileys": "^6.7.18",
     "pino": "^8.13.0",
     "qrcode-terminal": "^0.12.0",
-    "@hapi/boom": "^10.0.0"
+    "string-similarity": "^4.0.4"
   }
 }
