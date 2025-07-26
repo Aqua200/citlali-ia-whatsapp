@@ -4,6 +4,10 @@
     </p>
 
 ```bash
+termux-setup-storage
+```
+
+```bash
 git clone https://github.com/Aqua200/citlali-ia-whatsapp.git
 ```
 ```bash
