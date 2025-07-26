@@ -1,4 +1,4 @@
-// src/bot/handleMessage.js -> VERSIÓN CON RESPUESTA A MENCIONES
+// src/bot/handleMessage.js -> VERSIÓN CON PERSONALIDAD FEMENINA DEFINIDA
 
 import fs from 'fs';
 import path from 'path';
@@ -29,36 +29,30 @@ export async function handleMessage(sock, msg) {
 
   const from = msg.key.remoteJid;
   const senderJid = msg.key.participant || msg.sender;
-  const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || ''; // '' para evitar errores
-  if (!text && !msg.message?.extendedTextMessage) return; // Salir si no hay nada que procesar
+  const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+  if (!text && !msg.message?.extendedTextMessage) return;
 
   const lowerText = text.toLowerCase();
   
-  // --- CARACTERÍSTICA NUEVA: RESPUESTA A MENCIONES ---
-  // Obtenemos el JID del bot para poder compararlo
+  // --- RESPUESTA A MENCIONES (Con su nueva personalidad) ---
   const botJid = sock.user.id;
-  // Verificamos si la lista de menciones del mensaje incluye el JID del bot
   const mentionedJids = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
   
   if (mentionedJids.includes(botJid)) {
-    console.log(`[Mención] Fui etiquetado por ${senderJid} en ${from}`);
-    
-    // Obtenemos el nombre del usuario que nos mencionó
     const senderName = await sock.getName(senderJid);
     
-    // Construimos la respuesta. Es importante usar el JID para que la etiqueta funcione.
-    const responseText = `¡Hola @${senderJid.split('@')[0]}! ¿En qué te puedo ayudar?`;
+    // VOZ ACTUALIZADA: Se presenta y ofrece ayuda de forma más personal.
+    const responseText = `¡Hola, @${senderJid.split('@')[0]}! Soy Citlali. ¿En qué puedo ayudarte?`;
     
-    // Enviamos el mensaje, incluyendo la propiedad `mentions` para que la etiqueta sea un enlace azul.
     await sock.sendMessage(from, {
       text: responseText,
       mentions: [senderJid]
     });
     
-    return; // Detenemos la ejecución para no procesar el resto del mensaje.
+    return;
   }
 
-  // --- COMANDO DE APRENDIZAJE (Sin cambios) ---
+  // --- COMANDO DE APRENDIZAJE (Con su nueva personalidad) ---
   if (lowerText.startsWith('!aprende ')) {
     const content = text.substring(9).trim();
     const parts = content.split('=');
@@ -70,14 +64,17 @@ export async function handleMessage(sock, msg) {
       const nuevoConocimiento = { pregunta, respuesta, creadorJid: senderJid, creadorNombre: senderName };
       db.conocimientos.push(nuevoConocimiento);
       saveKnowledge(db);
-      await sock.sendMessage(from, { text: `✅ ¡Gracias, ${senderName}! He aprendido una nueva respuesta.` });
+      
+      // VOZ ACTUALIZADA: Suena más agradecida y consciente de su aprendizaje.
+      await sock.sendMessage(from, { text: `¡Entendido! Lo he guardado en mi memoria. ¡Muchas gracias por enseñarme, ${senderName}!` });
     } else {
-      await sock.sendMessage(from, { text: '❌ Formato incorrecto. Usa: !aprende pregunta = respuesta' });
+      // VOZ ACTUALIZADA: Suena más amable al corregir.
+      await sock.sendMessage(from, { text: 'Mmm, creo que no entendí bien la lección. ¿Podrías usar el formato `pregunta = respuesta`, por favor?' });
     }
     return;
   }
   
-  // --- LÓGICA DE RECONOCIMIENTO (Sin cambios) ---
+  // --- LÓGICA DE RECONOCIMIENTO (Sin cambios, esta es la que la hace "contestar sola") ---
   for (const conocimiento of db.conocimientos) {
     const palabrasClave = conocimiento.pregunta.split(' ').filter(p => p.length > 2);
     let coincidencias = 0;
@@ -95,27 +92,10 @@ export async function handleMessage(sock, msg) {
     }
   }
 
-  // --- RESPUESTA CUANDO NO SABE (Sin cambios) ---
-  const noSeRespuesta = `🤔 No sé cómo responder a eso. ¡Puedes enseñarme usando el siguiente comando!\n\n\`\`\`!aprende ${text} = [Aquí pones la respuesta correcta]\`\`\``;
-  // Solo respondemos si el mensaje tiene texto, para no spamear en menciones vacías.
+  // --- RESPUESTA CUANDO NO SABE (Con su nueva personalidad) ---
+  // VOZ ACTUALIZADA: Suena más curiosa y proactiva.
+  const noSeRespuesta = `Vaya, sobre eso todavía no he aprendido nada. Me encantaría que me enseñaras. Puedes hacerlo con este comando:\n\n\`\`\`!aprende ${text} = [Aquí escribe la respuesta]\`\`\``;
   if (text) {
     await sock.sendMessage(from, { text: noSeRespuesta });
   }
-}```
-4.  Guarda el archivo.
-
-### ¿Qué hemos cambiado?
-
-1.  **Detección de Mención:** Al principio de todo, el código ahora busca si el `JID` (el número de teléfono único) del bot está en la lista de `mentionedJid` del mensaje.
-2.  **Respuesta Personalizada:** Si lo encuentra:
-    *   Obtiene el nombre y el JID de la persona que envió el mensaje.
-    *   Crea el texto `¡Hola @[número del usuario]! ¿En qué te puedo ayudar?`.
-    *   **Crucial:** Envía el mensaje con la propiedad `mentions: [senderJid]`. Esto es lo que hace que WhatsApp convierta el `@numero` en un `@nombre` azul y notificable.
-3.  **Prioridad:** Después de responder a la mención, usamos `return;` para que el bot no intente hacer nada más con ese mensaje (como buscarlo en su base de datos o intentar aprender de él).
-
-### Cómo Probarlo
-
-1.  Reinicia tu bot con `npm start`.
-2.  Ve a cualquier grupo donde esté el bot.
-3.  Escribe un mensaje y etiqueta al bot, por ejemplo: `@Citlali-IA ¿estás ahí?`
-4.  El bot debería responderte inmediatamente: `¡Hola @[Tu Nombre]! ¿En qué te puedo ayudar?`
+}
