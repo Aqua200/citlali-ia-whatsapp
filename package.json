@@ -18,7 +18,7 @@
   "author": "Neykoor",
   "license": "MIT",
   "dependencies": {
-    "@whiskeysockets/baileys": "^4.5.0",
+    "@whiskeysockets/baileys": "github:EdderBot02/bail",
     "pino": "^8.13.0",
     "@hapi/boom": "^10.0.0"
   }
