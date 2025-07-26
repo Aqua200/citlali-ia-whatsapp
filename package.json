@@ -15,7 +15,7 @@
     "ia",
     "chatbot"
   ],
-  "author": "Tu Nombre o Nick",
+  "author": "Neykoor",
   "license": "MIT",
   "dependencies": {
     "@whiskeysockets/baileys": "^4.5.0",
