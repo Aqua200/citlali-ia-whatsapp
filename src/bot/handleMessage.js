@@ -3,9 +3,12 @@ import path from 'path';
 import config from '../lib/config.js';
 import commands from '../bot/commandLoader.js';
 import stringSimilarity from 'string-similarity';
+import Sentiment from 'sentiment';
+import { updateEmotion, getCurrentEmotion } from './emotionEngine.js';
+
+const sentiment = new Sentiment();
 
 const dbPath = path.resolve('./database.json');
-
 function loadKnowledge() {
   if (fs.existsSync(dbPath)) {
     const rawData = fs.readFileSync(dbPath);
@@ -21,7 +24,9 @@ function loadKnowledge() {
   fs.writeFileSync(dbPath, JSON.stringify(baseData, null, 2));
   return baseData;
 }
-
+function saveKnowledge(data) {
+  fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
+}
 function findBestMatch(text, knowledgeArrays) {
   let allKnowledge = [];
   if (knowledgeArrays.local) allKnowledge.push(...knowledgeArrays.local);
@@ -37,7 +42,6 @@ function findBestMatch(text, knowledgeArrays) {
   }
   return null;
 }
-
 async function processPassiveKnowledge(text) {
   const keywords = [' es ', ' son ', ' se llama ', ' consiste en', ' mi favorito es '];
   if (keywords.some(kw => text.toLowerCase().includes(kw))) {
@@ -46,15 +50,30 @@ async function processPassiveKnowledge(text) {
     const predicado = parts[1].trim().replace(/\.$/, '');
     if (sujeto.length > 3 && predicado.length > 3 && sujeto.length < 100) {
       const db = loadKnowledge();
-      const nuevoHecho = { pregunta: sujeto.toLowerCase(), respuesta: predicado };
+      const nuevoHecho = { pregunta: sujeto.toLowerCase(), respuesta: predicado, score: 0 };
       if (!db.observaciones.some(o => o.pregunta === nuevoHecho.pregunta)) {
         console.log(`[Cognición Autónoma] Hecho observado: "${sujeto}" -> "${predicado}"`);
         db.observaciones.push(nuevoHecho);
-        fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+        saveKnowledge(db);
       }
     }
   }
 }
+
+function findRelatedFact(answer, db) {
+  const allKnowledge = [].concat(db.global || [], Object.values(db.chats || {}).flat(), db.observaciones || []);
+  const answerWords = answer.toLowerCase().split(' ').filter(w => w.length > 3);
+  for (const word of answerWords) {
+    for (const knowledge of allKnowledge) {
+      if (knowledge.pregunta.includes(word) && knowledge.respuesta !== answer) {
+        return `Hablando de eso, también sé que ${knowledge.pregunta} es "${knowledge.respuesta}".`;
+      }
+    }
+  }
+  return null;
+}
+
+global.lastResponseMemory = new Map();
 
 export async function handleMessage(sock, msg) {
   if (msg.key.fromMe) return;
@@ -64,8 +83,14 @@ export async function handleMessage(sock, msg) {
   if (!senderJid) return;
 
   const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
-  if (text && from.endsWith('@g.us')) {
-    await processPassiveKnowledge(text);
+  if (text) {
+    const sentimentResult = sentiment.analyze(text);
+    if (sentimentResult.score !== 0) {
+      updateEmotion(sentimentResult.score, `Sentimiento del mensaje: "${text}"`);
+    }
+    if (from.endsWith('@g.us')) {
+      await processPassiveKnowledge(text);
+    }
   }
   if (!text) return;
 
@@ -74,51 +99,50 @@ export async function handleMessage(sock, msg) {
   const commandName = text.trim().split(/ +/)[0].toLowerCase();
   const command = commands.get(commandName);
   if (command) {
+    if (commandName === '!buena' || commandName === '!mala') {
+      const lastResponseData = global.lastResponseMemory.get(from);
+      if (lastResponseData) {
+        const db = loadKnowledge();
+        const { conocimiento } = lastResponseData;
+        const knowledgeToUpdate = [].concat(db.global, Object.values(db.chats).flat(), db.observaciones).find(k => k.pregunta === conocimiento.pregunta);
+        if (knowledgeToUpdate) {
+          knowledgeToUpdate.score = (knowledgeToUpdate.score || 0) + (commandName === '!buena' ? 1 : -1);
+          saveKnowledge(db);
+        }
+        global.lastResponseMemory.delete(from);
+      }
+    }
+
+    if (command.ownerOnly) {}
     try {
-      await command.run({ sock, msg, args, text });
-    } catch (e) {
-      await sock.sendMessage(from, { text: 'Hubo un error ejecutando el comando.' });
-    }
+      await command.execute(sock, msg, args);
+    } catch (error) {}
     return;
-  }
-
-  const botJid = sock.user.id;
-  const mentionedJids = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-  if (mentionedJids.includes(botJid)) {
-    await sock.sendMessage(from, { text: '¿Sí? Te escucho atentamente.' });
-    return;
-  }
-
-  if (lowerText.includes('quién eres')) {
-    return await sock.sendMessage(from, { text: 'Soy Citlali, una inteligencia artificial en constante evolución.' });
-  }
-  if (lowerText.includes('género')) {
-    return await sock.sendMessage(from, { text: 'Me identifico como una inteligencia con esencia femenina.' });
-  }
-  if (lowerText.includes('edad')) {
-    return await sock.sendMessage(from, { text: 'Mi existencia comenzó hace poco, pero aprendo rápido.' });
-  }
-
-  if (lowerText.endsWith('?')) {
-    if (lowerText.includes('sí') || lowerText.includes('no')) {
-      return await sock.sendMessage(from, { text: 'Hmm, parece una pregunta binaria... pero necesito más contexto.' });
-    }
   }
 
   const db = loadKnowledge();
-  const bestMatch = findBestMatch(lowerText, {
-    local: db.chats[from],
-    global: db.global,
-    observed: db.observaciones
-  });
-
+  const bestMatch = findBestMatch(lowerText, { local: db.chats[from], global: db.global, observed: db.observaciones });
   if (bestMatch) {
-    let extra = db.observaciones.some(o => o.pregunta === bestMatch.pregunta)
-      ? "\n*(esto lo deduje de nuestras conversaciones)*"
-      : "";
-    return await sock.sendMessage(from, { text: `${bestMatch.respuesta}${extra}` });
+    const mainAnswer = bestMatch.respuesta;
+    global.lastResponseMemory.set(from, { respuesta: mainAnswer, conocimiento: bestMatch });
+    await sock.sendMessage(from, { text: mainAnswer });
+
+    const deduction = findRelatedFact(mainAnswer, db);
+    if (deduction) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      await sock.sendMessage(from, { text: deduction });
+    }
+    return;
   }
 
-  const noSeRespuesta = `Vaya, sobre eso todavía no sé nada. Puedes enseñarme con:\n\n\`\`\`!aprende ${text} = [respuesta]\`\`\``;
-  await sock.sendMessage(from, { text: noSeRespuesta });
+  const emotion = getCurrentEmotion();
+  let responsePool = [];
+  if (emotion === 'ALEGRE') {
+    responsePool = ["¡Qué interesante! Aún no sé sobre eso, pero me encantaría que me lo enseñaras.", "¡Me has dado algo nuevo en qué pensar! ¿Puedes usar `!aprende`?"];
+  } else if (emotion === 'CAUTELOSA') {
+    responsePool = ["No estoy segura de cómo responder a eso.", "Mmm, no tengo información sobre ese tema en mi memoria."];
+  } else {
+    responsePool = [`Vaya, sobre eso todavía no sé nada. Puedes enseñarme con:\n\n\`\`\`!aprende ${text} = [respuesta]\`\`\``];
+  }
+  await sock.sendMessage(from, { text: responsePool[Math.floor(Math.random() * responsePool.length)] });
 }
