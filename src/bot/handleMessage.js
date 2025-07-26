@@ -119,4 +119,3 @@ export async function handleMessage(sock, msg) {
 2.  Ve a cualquier grupo donde esté el bot.
 3.  Escribe un mensaje y etiqueta al bot, por ejemplo: `@Citlali-IA ¿estás ahí?`
 4.  El bot debería responderte inmediatamente: `¡Hola @[Tu Nombre]! ¿En qué te puedo ayudar?`
-### ¡Felicidades! Tu bot ahora es mucho más social y consciente de su entorno en los grupos.
