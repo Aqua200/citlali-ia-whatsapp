@@ -1,13 +1,16 @@
-import makeWASocket, { useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } from '@whiskeysockets/baileys'
+import baileys from '@whiskeysockets/baileys'
+const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = baileys
+
 import { handleMessage } from './bot/core/ia.js'
 
 async function start() {
   const { version } = await fetchLatestBaileysVersion()
   const { state, saveCreds } = await useMultiFileAuthState('session')
+
   const sock = makeWASocket({
     version,
     auth: state,
-    printQRInTerminal: true // Esto muestra el QR para escanear en Termux/terminal
+    printQRInTerminal: true
   })
 
   sock.ev.on('connection.update', (update) => {
