@@ -1,10 +1,9 @@
-// src/bot/handleMessage.js -> VERSIÓN 100% AUTÓNOMA (SIN IA)
+// src/bot/handleMessage.js -> VERSIÓN CON RESPUESTA A MENCIONES
 
 import fs from 'fs';
 import path from 'path';
-// ELIMINADO: Ya no importamos la IA.
 
-// --- GESTIÓN DE LA BASE DE DATOS (Sin cambios aquí) ---
+// --- GESTIÓN DE LA BASE DE DATOS (Sin cambios) ---
 const dbPath = path.resolve('./database.json');
 
 function loadKnowledge() {
@@ -30,12 +29,36 @@ export async function handleMessage(sock, msg) {
 
   const from = msg.key.remoteJid;
   const senderJid = msg.key.participant || msg.sender;
-  const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
-  if (!text) return;
+  const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || ''; // '' para evitar errores
+  if (!text && !msg.message?.extendedTextMessage) return; // Salir si no hay nada que procesar
 
   const lowerText = text.toLowerCase();
+  
+  // --- CARACTERÍSTICA NUEVA: RESPUESTA A MENCIONES ---
+  // Obtenemos el JID del bot para poder compararlo
+  const botJid = sock.user.id;
+  // Verificamos si la lista de menciones del mensaje incluye el JID del bot
+  const mentionedJids = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+  
+  if (mentionedJids.includes(botJid)) {
+    console.log(`[Mención] Fui etiquetado por ${senderJid} en ${from}`);
+    
+    // Obtenemos el nombre del usuario que nos mencionó
+    const senderName = await sock.getName(senderJid);
+    
+    // Construimos la respuesta. Es importante usar el JID para que la etiqueta funcione.
+    const responseText = `¡Hola @${senderJid.split('@')[0]}! ¿En qué te puedo ayudar?`;
+    
+    // Enviamos el mensaje, incluyendo la propiedad `mentions` para que la etiqueta sea un enlace azul.
+    await sock.sendMessage(from, {
+      text: responseText,
+      mentions: [senderJid]
+    });
+    
+    return; // Detenemos la ejecución para no procesar el resto del mensaje.
+  }
 
-  // --- COMANDO DE APRENDIZAJE (Sigue igual) ---
+  // --- COMANDO DE APRENDIZAJE (Sin cambios) ---
   if (lowerText.startsWith('!aprende ')) {
     const content = text.substring(9).trim();
     const parts = content.split('=');
@@ -54,7 +77,7 @@ export async function handleMessage(sock, msg) {
     return;
   }
   
-  // --- LÓGICA DE RECONOCIMIENTO (Sigue igual) ---
+  // --- LÓGICA DE RECONOCIMIENTO (Sin cambios) ---
   for (const conocimiento of db.conocimientos) {
     const palabrasClave = conocimiento.pregunta.split(' ').filter(p => p.length > 2);
     let coincidencias = 0;
@@ -72,8 +95,29 @@ export async function handleMessage(sock, msg) {
     }
   }
 
-  // --- ¡LÓGICA COMPLETAMENTE NUEVA! Si no encuentra respuesta... ---
-  // En lugar de llamar a la IA, ahora envía un mensaje de ayuda.
+  // --- RESPUESTA CUANDO NO SABE (Sin cambios) ---
   const noSeRespuesta = `🤔 No sé cómo responder a eso. ¡Puedes enseñarme usando el siguiente comando!\n\n\`\`\`!aprende ${text} = [Aquí pones la respuesta correcta]\`\`\``;
-  await sock.sendMessage(from, { text: noSeRespuesta });
-}
+  // Solo respondemos si el mensaje tiene texto, para no spamear en menciones vacías.
+  if (text) {
+    await sock.sendMessage(from, { text: noSeRespuesta });
+  }
+}```
+4.  Guarda el archivo.
+
+### ¿Qué hemos cambiado?
+
+1.  **Detección de Mención:** Al principio de todo, el código ahora busca si el `JID` (el número de teléfono único) del bot está en la lista de `mentionedJid` del mensaje.
+2.  **Respuesta Personalizada:** Si lo encuentra:
+    *   Obtiene el nombre y el JID de la persona que envió el mensaje.
+    *   Crea el texto `¡Hola @[número del usuario]! ¿En qué te puedo ayudar?`.
+    *   **Crucial:** Envía el mensaje con la propiedad `mentions: [senderJid]`. Esto es lo que hace que WhatsApp convierta el `@numero` en un `@nombre` azul y notificable.
+3.  **Prioridad:** Después de responder a la mención, usamos `return;` para que el bot no intente hacer nada más con ese mensaje (como buscarlo en su base de datos o intentar aprender de él).
+
+### Cómo Probarlo
+
+1.  Reinicia tu bot con `npm start`.
+2.  Ve a cualquier grupo donde esté el bot.
+3.  Escribe un mensaje y etiqueta al bot, por ejemplo: `@Citlali-IA ¿estás ahí?`
+4.  El bot debería responderte inmediatamente: `¡Hola @[Tu Nombre]! ¿En qué te puedo ayudar?`
+
+¡Felicidades! Tu bot ahora es mucho más social y consciente de su entorno en los grupos.
