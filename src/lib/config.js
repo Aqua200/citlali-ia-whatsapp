@@ -1,22 +1,10 @@
-export async function resolveGroupJIDs(sock) {
-  try {
-    if (config.officialGroup && config.officialGroup.startsWith('https://')) {
-      const groupInviteCode = config.officialGroup.split('/').pop();
-      const groupInfo = await sock.groupGetInviteInfo(groupInviteCode);
-      config.officialGroupJID = groupInfo.id;
-    }
-  } catch (e) {
-    console.error(`Error al resolver el JID del grupo:`, e.message);
-  }
-}
-
 const config = {
-  owner: ['5211234567890@s.whatsapp.net'],
-  officialGroup: 'https://chat.whatsapp.com/JchA8tqCFPLCRbG8aKIF2e',
-  officialChannel: 'https://whatsapp.com/channel/0029VbAZ6vWF1YlYsbKCrx1k',
-  botAge: 11,
-  officialGroupJID: null,
-  officialChannelJID: null,
+    owner: [
+        '5211234567890@s.whatsapp.net'
+    ],
+    botAge: 11,
+    officialGroup: 'https://chat.whatsapp.com/TU_ENLACE',
+    officialChannel: 'https://whatsapp.com/channel/TU_ENLACE',
 };
 
 export default config;
