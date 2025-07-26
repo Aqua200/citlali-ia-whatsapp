@@ -1,5 +1,3 @@
-Aquí tienes el código sin los comentarios:
-
 import chalk from 'chalk';
 import { getRandomThought } from '../lib/thoughts.js';
 
@@ -22,4 +20,3 @@ export function startInternalMonologue() {
 
     setTimeout(think, 10000);
 }
-
