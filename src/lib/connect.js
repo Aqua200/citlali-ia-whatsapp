@@ -1,4 +1,3 @@
-
 import pino from 'pino'
 import { useMultiFileAuthState, fetchLatestBaileysVersion, makeWASocket, DisconnectReason, Browsers } from '@whiskeysockets/baileys'
 import readline from 'readline'
