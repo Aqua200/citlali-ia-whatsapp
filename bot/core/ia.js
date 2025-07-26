@@ -1,49 +1,43 @@
-// ia (1).js - Corregido para auto-respuesta controlada
+// Helper para añadir pausas. No lo cambies.
+const delay = ms => new Promise(res => setTimeout(res, ms));
 
 export async function handleMessage(sock, msg) {
+  // === LA PROTECCIÓN MÁS IMPORTANTE ===
+  // Ignora todos los mensajes que el propio bot envía.
+  // Esto previene el 99% de los bucles infinitos.
+  if (msg.key.fromMe) {
+    return;
+  }
+  // =====================================
+
   const from = msg.key.remoteJid;
   const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
 
   if (!text) return;
 
-  const fromMe = msg.key.fromMe; // Comprobamos si el mensaje viene del bot
-  const lowerText = text.toLowerCase(); // Pasamos el texto a minúsculas una sola vez
+  const lowerText = text.toLowerCase();
 
-  // --- LÓGICA PRINCIPAL ---
-  // Esta sección se encarga de las respuestas a los demás y a sí mismo.
+  // Condición de inicio (la activa el usuario)
+  if (lowerText.includes('hola')) {
+    // Si el usuario dice "hola", el bot envía la secuencia directamente.
+    
+    // Mensaje 1
+    await sock.sendMessage(from, { text: '¡Hola! Permíteme presentarme...' });
+    await delay(1000); // Espera 1 segundo (1000 ms)
 
-  // 1. Condición de inicio (la activa el usuario)
-  if (lowerText.includes('hola') && !fromMe) {
-    // Si un USUARIO (no el bot) dice "hola", inicia la secuencia.
-    await sock.sendMessage(from, { text: '¡Hola! Iniciando mi presentación... [Paso 1]' });
-    return; // Detenemos la función aquí para no seguir evaluando.
-  }
+    // Mensaje 2
+    await sock.sendMessage(from, { text: 'Soy Citlali, tu asistente de IA.' });
+    await delay(1000); // Espera 1 segundo
 
-  // 2. Condición de auto-respuesta (la activa el bot)
-  if (lowerText.includes('[paso 1]') && fromMe) {
-    // Si el BOT (y solo el bot) envía un mensaje con "[Paso 1]", responde con el paso 2.
-    await sock.sendMessage(from, { text: 'Soy Citlali, tu asistente IA. [Paso 2]' });
-    return;
-  }
-  
-  // 3. Condición final de auto-respuesta (la activa el bot)
-  if (lowerText.includes('[paso 2]') && fromMe) {
-    // Si el BOT (y solo el bot) envía un mensaje con "[Paso 2]", responde con el mensaje final.
-    await sock.sendMessage(from, { text: '¡Secuencia completada! ¿En qué te puedo ayudar?' });
-    return; // El mensaje final no contiene ninguna palabra clave, por lo que el ciclo se detiene aquí.
-  }
-  
-  // 4. Respuesta para "adiós" (solo para usuarios)
-  if (lowerText.includes('adiós') && !fromMe) {
+    // Mensaje 3
+    await sock.sendMessage(from, { text: '¿En qué te puedo ayudar hoy?' });
+    
+    // La secuencia termina aquí. No se necesita más lógica.
+
+  } else if (lowerText.includes('adiós')) {
     await sock.sendMessage(from, { text: '¡Hasta luego! Que tengas un gran día 😊' });
-    return;
+  } else {
+    // Respuesta por defecto para cualquier otro mensaje.
+    await sock.sendMessage(from, { text: 'No entendí eso, ¿puedes intentar de nuevo?' });
   }
-
-  // 5. Respuesta por defecto (solo si el mensaje es de un usuario y no coincide con nada)
-  if (!fromMe) {
-      await sock.sendMessage(from, { text: 'No entendí eso, ¿puedes intentar de nuevo?' });
-  }
-
-  // Si el mensaje es del bot y no coincide con ninguna condición de auto-respuesta,
-  // simplemente no hace nada, evitando el bucle infinito.
 }
