@@ -1,22 +1,20 @@
 import chalk from 'chalk';
 import { getRandomThought } from '../lib/thoughts.js';
+import { getCurrentEmotion } from './emotionEngine.js';
 
-function printThought(thought) {
-    console.log(chalk.magenta('-----------------------------------------'));
-    console.log(chalk.magenta.bold('💭 Pensamiento Interno de Citlali:'));
-    console.log(chalk.magenta(`   "${thought}"`));
-    console.log(chalk.magenta('-----------------------------------------'));
+function printThought(thought, emotion) {
+    let color = chalk.magenta;
+    if (emotion === 'ALEGRE') color = chalk.yellow;
+    if (emotion === 'CAUTELOSA') color = chalk.cyan;
+
+    console.log(color('-----------------------------------------'));
+    console.log(color.bold(`💭 Pensamiento Interno [${emotion}]:`));
 }
 
 export function startInternalMonologue() {
-    console.log(chalk.cyan('✨ La mente de Citlali ha despertado.'));
-
     const think = () => {
-        const thought = getRandomThought();
-        printThought(thought);
-        const nextThoughtDelay = Math.floor(Math.random() * (300000 - 60000 + 1)) + 60000;
-        setTimeout(think, nextThoughtDelay);
+        const emotion = getCurrentEmotion();
+        const thought = getRandomThought(); 
+        printThought(thought, emotion);
     };
-
-    setTimeout(think, 10000);
 }
