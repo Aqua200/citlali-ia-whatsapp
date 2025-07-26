@@ -1,8 +1,8 @@
 import { connect } from './src/lib/connect.js';
 import { resolveGroupJIDs } from './src/lib/config.js';
 import { handleMessage } from './src/bot/handleMessage.js';
-import { getRandomThought } from './src/lib/thoughts.js';
 import { startInternalMonologue } from './src/bot/internalMonologue.js';
+import { getRandomThought } from './src/lib/thoughts.js';
 
 const chatActivity = new Map();
 const INACTIVITY_THRESHOLD = 45 * 60 * 1000;
@@ -20,12 +20,8 @@ async function start() {
 
   setInterval(async () => {
     const now = Date.now();
-    console.log('[Corazón Externo] Revisando la actividad de los grupos...');
-    
     for (const [chatId, lastActivity] of chatActivity.entries()) {
-      if (!chatId.endsWith('@g.us')) continue;
-      if ((now - lastActivity) > INACTIVITY_THRESHOLD) {
-        console.log(`[Pensamiento Externo] El grupo ${chatId} está en silencio. Tomando la iniciativa...`);
+      if (chatId.endsWith('@g.us') && (now - lastActivity) > INACTIVITY_THRESHOLD) {
         const thought = getRandomThought();
         await sock.sendMessage(chatId, { text: thought });
         chatActivity.set(chatId, now);
@@ -34,7 +30,7 @@ async function start() {
   }, 10 * 60 * 1000);
 
   startInternalMonologue();
-  console.log("🚀 Citlali está completamente viva: responde, piensa en voz alta y reflexiona internamente.");
+  console.log("🚀 Citlali está viva. Con herramientas y una mente autónoma.");
 }
 
 start();
