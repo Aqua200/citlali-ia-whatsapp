@@ -1,5 +1,5 @@
 import { connect } from './src/lib/connect.js';
-import config, { resolveGroupJIDs } from './src/lib/config.js';
+import { resolveGroupJIDs } from './src/lib/config.js';
 import { handleMessage } from './src/bot/handleMessage.js';
 
 async function start() {
