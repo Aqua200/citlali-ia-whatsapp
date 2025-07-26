@@ -1,0 +1,25 @@
+{
+  "name": "citlali-ia-whatsapp",
+  "version": "1.0.0",
+  "description": "Bot de WhatsApp con IA para Termux - Citlali Bot",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "baileys",
+    "termux",
+    "ia",
+    "chatbot"
+  ],
+  "author": "Tu Nombre o Nick",
+  "license": "MIT",
+  "dependencies": {
+    "@whiskeysockets/baileys": "^4.5.0",
+    "pino": "^8.13.0",
+    "@hapi/boom": "^10.0.0"
+  }
+}
