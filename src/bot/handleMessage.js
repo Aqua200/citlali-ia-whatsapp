@@ -1,15 +1,10 @@
-// src/bot/handleMessage.js -> VERSIÓN FINAL CON ESTADOS DE ÁNIMO Y LÓGICA PROPIA
 
 import fs from 'fs';
 import path from 'path';
 
-// --- GESTIÓN DE LA BASE DE DATOS (Sin cambios) ---
 const dbPath = path.resolve('./database.json');
-// ... (Las funciones loadKnowledge y saveKnowledge se quedan igual, las incluimos al final)
 let db = loadKnowledge();
 
-// --- MOTOR DE PERSONALIDAD DE CITLALI ---
-// Esta función central elige qué decir basado en el estado de ánimo actual de Citlali.
 async function responderSegunEstado(sock, from, estado, contexto = {}) {
   let respuestasPosibles = [];
   
@@ -45,26 +40,24 @@ async function responderSegunEstado(sock, from, estado, contexto = {}) {
         `Mi memoria aún no tiene información sobre "${contexto.pregunta}". ¿Te gustaría enseñarme la respuesta?`
       ];
       const sugerencia = `Puedes hacerlo con este comando:\n\n\`\`\`!aprende ${contexto.pregunta} = [Aquí escribe la respuesta]\`\`\``;
-      // Enviamos una de las respuestas curiosas y luego la sugerencia.
+      
       const respuestaCuriosa = respuestasPosibles[Math.floor(Math.random() * respuestasPosibles.length)];
       await sock.sendMessage(from, { text: `${respuestaCuriosa}\n\n${sugerencia}` });
-      return; // Salimos porque este caso tiene una estructura especial.
-
-    default: // Caso NEUTRAL o no definido
+      return; 
+      
+    default: 
       respuestasPosibles = [`No estoy segura de qué decir a eso.`];
   }
 
-  // Elige una respuesta al azar de las posibles para ese estado
-  const respuestaFinal = respuestasPosibles[Math.floor(Math.random() * respuestasPosibles.length)];
+    const respuestaFinal = respuestasPosibles[Math.floor(Math.random() * respuestasPosibles.length)];
 
   await sock.sendMessage(from, { 
     text: respuestaFinal,
-    mentions: contexto.jid ? [contexto.jid] : [] // Añade la mención si existe en el contexto
+    mentions: contexto.jid ? [contexto.jid] : [] 
   });
 }
 
 
-// --- LÓGICA PRINCIPAL DE MENSAJES (Ahora es un "Director de Orquesta") ---
 export async function handleMessage(sock, msg) {
   if (msg.key.fromMe) return;
 
@@ -75,18 +68,18 @@ export async function handleMessage(sock, msg) {
 
   const lowerText = text.toLowerCase();
   
-  let estadoActual = 'NEUTRAL'; // Por defecto, su estado es neutral
-  let contexto = {}; // Información adicional para la respuesta
+  let estadoActual = 'NEUTRAL'; 
+  let contexto = {}; 
 
   const botJid = sock.user.id;
   const mentionedJids = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
   
-  // DISPARADOR 1: Es mencionada
+  
   if (mentionedJids.includes(botJid)) {
     estadoActual = 'MENCIONADA';
     contexto = { jid: senderJid.split('@')[0] };
   
-  // DISPARADOR 2: Le intentan enseñar algo
+  
   } else if (lowerText.startsWith('!aprende ') || lowerText.startsWith('!aprender ')) {
     const commandPrefix = lowerText.startsWith('!aprende ') ? '!aprende ' : '!aprender ';
     const content = text.substring(commandPrefix.length).trim();
@@ -105,7 +98,7 @@ export async function handleMessage(sock, msg) {
     }
 
   } else {
-    // DISPARADOR 3: Revisa su memoria para contestar "sola"
+     
     let respuestaEncontrada = false;
     for (const conocimiento of db.conocimientos) {
       const palabrasClave = conocimiento.pregunta.split(' ').filter(p => p.length > 2);
@@ -118,25 +111,24 @@ export async function handleMessage(sock, msg) {
         console.log(`[Memoria Local] Respondiendo a "${conocimiento.pregunta}"`);
         await sock.sendMessage(from, { text: conocimiento.respuesta });
         respuestaEncontrada = true;
-        break; // Sale del bucle al encontrar respuesta
+        break; 
       }
     }
-    // DISPARADOR 4: Si no encontró nada, se pone curiosa
+    
     if (!respuestaEncontrada && text) {
       estadoActual = 'CURIOSA';
       contexto = { pregunta: text };
     }
   }
 
-  // Al final, llamamos al motor de personalidad si el estado no es neutral o si es una mención
-  if (estadoActual !== 'NEUTRAL' || mentionedJids.includes(botJid)) {
-    if (estadoActual !== 'NEUTRAL') { // Evitar doble respuesta si no es mencionada
+   if (estadoActual !== 'NEUTRAL' || mentionedJids.includes(botJid)) {
+    if (estadoActual !== 'NEUTRAL') { 
          await responderSegunEstado(sock, from, estadoActual, contexto);
     }
   }
 }
 
-// --- FUNCIONES DE BASE DE DATOS (Asegúrate de que estén aquí) ---
+
 function loadKnowledge() {
   if (fs.existsSync(dbPath)) {
     const rawData = fs.readFileSync(dbPath);
