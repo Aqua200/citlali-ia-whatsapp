@@ -24,16 +24,13 @@ function loadKnowledge() {
 function saveKnowledge(data) {
   fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
 }
-
 function findBestMatch(text, knowledgeArrays) {
-  let allKnowledge = [];
-  if (knowledgeArrays.global) allKnowledge.push(...knowledgeArrays.global);
-  if (knowledgeArrays.local) allKnowledge.push(...knowledgeArrays.local);
-  if (knowledgeArrays.observed) allKnowledge.push(...knowledgeArrays.observed);
+  let allKnowledge = [].concat(...Object.values(knowledgeArrays).filter(Boolean));
   if (allKnowledge.length === 0) return null;
   const learnedQuestions = allKnowledge.map(k => k.pregunta);
+  if (learnedQuestions.length === 0) return null;
   const matches = stringSimilarity.findBestMatch(text, learnedQuestions);
-  if (matches.bestMatch.rating > 0.5) {
+  if (matches.bestMatch.rating > 0.6) {
     const bestKnowledge = allKnowledge.find(k => k.pregunta === matches.bestMatch.target);
     return bestKnowledge;
   }
@@ -42,15 +39,13 @@ function findBestMatch(text, knowledgeArrays) {
 
 let conversationBuffer = new Map();
 let lastProcessedTime = new Map();
-
 async function processConversationWithAI(chatId, newText) {
-  const COOLDOWN = 2 * 60 * 1000;
+  const COOLDOWN = 3 * 60 * 1000;
   const now = Date.now();
   let buffer = conversationBuffer.get(chatId) || [];
   buffer.push(newText);
   conversationBuffer.set(chatId, buffer);
   if (now - (lastProcessedTime.get(chatId) || 0) < COOLDOWN) return;
-  console.log(`[Cognición IA] Analizando la conversación acumulada de ${chatId}...`);
   const context = buffer.join('\n');
   conversationBuffer.set(chatId, []);
   lastProcessedTime.set(chatId, now);
@@ -64,29 +59,30 @@ async function processConversationWithAI(chatId, newText) {
       const parts = line.split('=');
       const pregunta = parts[0].trim().toLowerCase();
       const respuesta = parts[1].trim();
-      const nuevoHecho = { pregunta, respuesta };
-      if (!db.observaciones.some(o => o.pregunta === nuevoHecho.pregunta)) {
-        db.observaciones.push(nuevoHecho);
+      if (!db.observaciones.some(o => o.pregunta === pregunta)) {
+        db.observaciones.push({ pregunta, respuesta });
         factsLearned++;
       }
     }
   }
   if (factsLearned > 0) {
     saveKnowledge(db);
-    console.log(`[Cognición IA] ¡Éxito! Se aprendieron ${factsLearned} nuevos hechos de la conversación.`);
   }
 }
 
 export async function handleMessage(sock, msg) {
   if (msg.key.fromMe) return;
+
   const from = msg.key.remoteJid;
   const senderJid = msg.key.participant || msg.sender;
   if (!senderJid) return;
+
   const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
   if (text && from.endsWith('@g.us')) {
     await processConversationWithAI(from, `${msg.pushName || 'Alguien'}: ${text}`);
   }
   if (!text) return;
+
   const lowerText = text.toLowerCase();
   const args = text.trim().split(/ +/).slice(1);
   const commandName = text.trim().split(/ +/)[0].toLowerCase();
@@ -100,11 +96,12 @@ export async function handleMessage(sock, msg) {
     try {
       await command.execute(sock, msg, args);
     } catch (error) {
-      console.error(`Error ejecutando el comando ${commandName}:`, error);
-      await sock.sendMessage(from, { text: '¡Ups! Algo salió mal.' });
+      console.error(`Error en comando ${commandName}:`, error);
+      await sock.sendMessage(from, { text: '¡Ups! Algo salió mal con ese comando.' });
     }
     return;
   }
+
   const botJid = sock.user.id;
   const mentionedJids = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
   if (mentionedJids.includes(botJid)) {
@@ -113,22 +110,28 @@ export async function handleMessage(sock, msg) {
     await sock.sendMessage(from, { text: responseText, mentions: [senderJid] });
     return;
   }
-  if (lowerText.includes('género') || lowerText.includes('quién eres')) {
-    return await sock.sendMessage(from, { text: 'Soy una inteligencia artificial con identidad femenina.' });
+
+  if (lowerText.includes('quién eres')) {
+    return await sock.sendMessage(from, { text: 'Soy Citlali, una IA que aprende de nuestras conversaciones.' });
+  }
+  if (lowerText.includes('género')) {
+    return await sock.sendMessage(from, { text: 'Tengo una identidad femenina.' });
   }
   if (lowerText.includes('edad')) {
-    return await sock.sendMessage(from, { text: `Tengo ${config.botAge} años.` });
+    return await sock.sendMessage(from, { text: `Tengo ${config.botAge} años en tiempo de procesamiento, pero mi conocimiento crece cada día.` });
   }
+
   const db = loadKnowledge();
   const bestMatch = findBestMatch(lowerText, { local: db.chats[from], global: db.global, observed: db.observaciones });
   if (bestMatch) {
-    let extra = db.observaciones.some(o => o.pregunta === bestMatch.pregunta) ? "\n*(Esto lo aprendí observando nuestras conversaciones)*" : "";
+    let extra = db.observaciones.some(o => o.pregunta === bestMatch.pregunta) ? "\n*(deduje esto de nuestras conversaciones)*" : "";
     return await sock.sendMessage(from, { text: `${bestMatch.respuesta}${extra}` });
   }
+
   const noSeRespuesta = [
-    "Vaya, esa es una pregunta interesante...",
-    "Mmm, eso es nuevo para mí...",
-    "No tengo esa información en mi memoria..."
+    "Vaya, esa es una pregunta interesante, aún no sé la respuesta.",
+    "Mmm, eso es nuevo para mí. Me has dejado pensando.",
+    "No tengo esa información en mi memoria, pero estoy aprendiendo."
   ];
   await sock.sendMessage(from, { text: noSeRespuesta[Math.floor(Math.random() * noSeRespuesta.length)] });
 }
