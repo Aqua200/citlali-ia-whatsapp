@@ -1,6 +1,6 @@
 {
   "name": "citlali-ia-whatsapp",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Bot WhatsApp con IA para Termux",
   "main": "index.js",
   "type": "module",
@@ -13,6 +13,7 @@
     "@hapi/boom": "^10.0.0",
     "@whiskeysockets/baileys": "^6.7.18",
     "chalk": "^5.3.0",
+    "dotenv": "^16.4.5",
     "pino": "^8.13.0",
     "qrcode-terminal": "^0.12.0",
     "sentiment": "^5.0.2",
