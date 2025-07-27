@@ -1,4 +1,4 @@
-// src/bot/handleMessage.js -> CEREBRO DEFINITIVO CON GESTIÓN AVANZADA DE PERMISOS
+// src/bot/handleMessage.js -> CEREBRO DEFINITIVO CON PERMISOS FORZADOS Y CONCIENCIA COMPLETA
 
 import fs from 'fs';
 import path from 'path';
@@ -111,44 +111,34 @@ export async function handleMessage(sock, msg) {
     
     // --- JERARQUÍA DE DECISIONES ---
 
-    // 1. ¿ES UN COMANDO DE PLUGIN? (Con gestión de permisos completa)
+    // 1. ¿ES UN COMANDO DE PLUGIN? (Con gestión de permisos forzada)
     const args = text.trim().split(/ +/).slice(1);
     const commandName = text.trim().split(/ +/)[0].toLowerCase();
     const command = commands.get(commandName);
     if (command) {
-        // a) ¿Es solo para grupos?
         if (command.groupOnly && !from.endsWith('@g.us')) {
             return await sock.sendMessage(from, { text: 'Este comando solo se puede usar en grupos.' });
         }
-        // Obtenemos metadatos del grupo si son necesarios para otras verificaciones
-        let groupMetadata, participants;
         if (command.adminOnly || command.botAdmin) {
             if (!from.endsWith('@g.us')) return; 
-            groupMetadata = await sock.groupMetadata(from);
-            participants = groupMetadata.participants;
-        }
-        // b) ¿El bot necesita ser admin?
-        if (command.botAdmin) {
+            const groupMetadata = await sock.groupMetadata(from);
+            const participants = groupMetadata.participants;
             const botInfo = participants.find(p => p.id === sock.user.id);
-            if (!botInfo?.admin) {
+            const userInfo = participants.find(p => p.id === senderJid);
+            console.log(`[Permisos] Verificando en "${groupMetadata.subject}": Usuario (${userInfo?.admin || 'miembro'}), Bot (${botInfo?.admin || 'miembro'})`);
+            if (command.botAdmin && !botInfo?.admin) {
                 return await sock.sendMessage(from, { text: 'Necesito ser administradora del grupo para ejecutar este comando.' });
             }
-        }
-        // c) ¿El usuario necesita ser admin?
-        if (command.adminOnly) {
-            const userInfo = participants.find(p => p.id === senderJid);
-            if (!userInfo?.admin) {
+            if (command.adminOnly && !userInfo?.admin) {
                 return await sock.sendMessage(from, { text: 'Lo siento, este comando es solo para administradores del grupo.' });
             }
         }
-        // d) ¿Es solo para el dueño?
         if (command.ownerOnly) {
             const senderNumber = senderJid.split('@')[0];
             const isOwner = config.owner.some(owner => owner[0] === senderNumber);
             if (!isOwner) return await sock.sendMessage(from, { text: 'Lo siento, solo los dueños de Citlali pueden usar este comando.' });
         }
         
-        // Si pasa todas las verificaciones, ejecuta el comando.
         await command.execute(sock, msg, args);
         return;
     }
@@ -169,7 +159,25 @@ export async function handleMessage(sock, msg) {
     if (lowerText.includes('edad')) { return await sock.sendMessage(from, { text: `Tengo ${config.botAge} años en tiempo de procesamiento.` }); }
 
     // 4. LÓGICA DE VERIFICACIÓN (SÍ/NO)
-    // ... (El código de Sí/No se queda aquí) ...
+    if (lowerText.endsWith('?')) {
+        const questionText = lowerText.slice(0, -1).trim();
+        const factKeywords = ['es', 'son'];
+        const keyword = factKeywords.find(kw => questionText.includes(` ${kw} `));
+        if (keyword) {
+            const parts = questionText.split(new RegExp(` ${keyword} `, 'i'));
+            if (parts.length === 2) {
+                const sujeto = parts[0].trim().replace(/^(es|son)\s*/, '');
+                const afirmacion = parts[1].trim();
+                const db = loadKnowledge();
+                const bestMatch = findBestMatch(sujeto, { local: db.chats[from], global: db.global, observed: db.observaciones });
+                if (bestMatch) {
+                    const similarity = stringSimilarity.compareTwoStrings(afirmacion, bestMatch.respuesta.toLowerCase());
+                    if (similarity > 0.7) return await sock.sendMessage(from, { text: 'Sí, ¡exacto!' });
+                    else return await sock.sendMessage(from, { text: `No, según lo que he aprendido, ${sujeto} es "${bestMatch.respuesta}".` });
+                }
+            }
+        }
+    }
 
     // 5. BÚSQUEDA EN MEMORIA Y DEDUCCIÓN
     const db = loadKnowledge();
@@ -189,9 +197,13 @@ export async function handleMessage(sock, msg) {
     // 6. RESPUESTA POR DEFECTO CON ESTILO EMOCIONAL
     const emotion = getCurrentEmotion();
     let responsePool = [];
-    if (emotion === 'ALEGRE') { /* ... */ } 
-    else if (emotion === 'CAUTELOSA') { /* ... */ } 
-    else { /* ... */ }
+    if (emotion === 'ALEGRE') {
+        responsePool = ["¡Qué interesante! Aún no sé sobre eso, pero me encantaría que me lo enseñaras.", "¡Me has dado algo nuevo en qué pensar! ¿Puedes usar `!aprende`?"];
+    } else if (emotion === 'CAUTELOSA') {
+        responsePool = ["No estoy segura de cómo responder a eso.", "Mmm, no tengo información sobre ese tema en mi memoria."];
+    } else { // NEUTRAL
+        responsePool = [`Vaya, sobre eso todavía no sé nada. Puedes enseñarme con:\n\n\`\`\`!aprende ${text} = [respuesta]\`\`\``];
+    }
     await sock.sendMessage(from, { text: responsePool[Math.floor(Math.random() * responsePool.length)] });
 
   } catch (e) {
