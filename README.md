@@ -1,5 +1,9 @@
 # citlali-ia-whatsapp
 
+
+Nota Del Creador:
+No se siguio con el proyecto no tiene fecha de retomo si quieres seguirle adelante 
+
  <img src= "https://files.catbox.moe/2127dl.jpeg">
     </p>
 
